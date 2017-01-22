@@ -1,0 +1,153 @@
+---
+title: 'Coursera: Practical Machine Learning Course Project'
+author: "Paul Harrington"
+output:
+  html_document:
+    keep_md: yes
+  pdf_document: default
+---
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+
+More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+  
+<br>
+<br>
+
+
+## Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+The project, and the data used therein, are described further in the following paper:
+
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+Read more: http://groupware.les.inf.puc-rio.br/har#ixzz4VBNAhMMs
+
+
+<br>
+<br>
+
+
+## Data Loading
+
+For the purpose of this exercise, our working data set is going to be the training data (pml-training.csv), We load this as follows. Note that we can take care of some inconsistency in the format of "N/A" type data in this step:
+
+```{r}
+fileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+download.file(fileUrl,destfile="./pml-training.csv")
+pml_data <- read.csv("./pml-training.csv", na.strings=c("#DIV/0!","NA",""))
+```
+
+
+## Data Cleansing
+
+We will remove data we don't need for this analysis: 
+
+- The time-series data in columns up to 7, as these are not a factor in predicting whether or not an exercise is performed correctly
+
+- The training data set contains many columns for which the vast majority of the values are N/A. Due to time constraints, we will simply remove these columns from the analysis, Decision rule is: if the column has more than 75% NA values, exclude
+
+
+```{r}
+pml_data <- pml_data[-(1:7)]
+na.col_list <- sapply(colnames(pml_data), function(x) if(sum(is.na(pml_data[, x])) > 0.75 * nrow(pml_data)){return(TRUE)}else{return(FALSE)})
+pml_data <- pml_data[, !na.col_list]
+
+```
+
+
+## Data Partitioning
+
+We now split the working data set into training and testing partitions:
+
+```{r}
+library(caret)
+pml_data_partition <- createDataPartition(y=pml_data$classe, p=0.7, list=FALSE)
+pml_data_training <- pml_data[pml_data_partition, ]
+pml_data_testing <- pml_data[-pml_data_partition, ]
+```
+
+<br>
+(Note that the partitioning of our working data set into training and testing partitions is not to be confused with the existence of separate training and test data sets at the HAR site; we will also be using our prediction model to predict values for the test data set, later in the exercise)
+<br>
+
+
+## Generation of Prediction Model
+
+We will generate Prediction Models using the following methods:
+
+1. Linear Discriminant Analysis
+2. Random Forests
+
+We are using the classe variable to train the prediction models. For both methods, we train using the Training partition (pml_data_training). We then perform **Cross-Validation** using the Testing partition (pml_data_testing).
+
+### 1. Linear Discriminant Analysis
+
+```{r}
+set.seed(12345)
+training_lda <- train(classe ~ .,data=pml_data_training,method="lda")
+prediction_lda <- predict(training_lda, pml_data_testing)
+confusionMatrix(prediction_lda,pml_data_testing$classe)
+```
+
+### 2. Random Forests
+
+```{r}
+set.seed(12345)
+library(randomForest)
+training_rf <- randomForest(classe ~ .,data=pml_data_training)
+prediction_rf <- predict(training_rf, pml_data_testing)
+confusionMatrix(prediction_rf,pml_data_testing$classe)
+```
+
+As we can see, the Random Forest method provides a very accurate prediction. We will therefore not test any other methods, but will proceed with the Random Forest method.
+<br>
+<br>
+We can calculate Accuracy and Out of Sample error from the above results, as follows:
+
+
+## Accuracy, and Out of Sample Error
+
+```{r}
+cmatrix_rf <- confusionMatrix(prediction_rf,pml_data_testing$classe)
+accuracy_cmatrix_rf <- cmatrix_rf$overall['Accuracy']
+accuracy_cmatrix_rf
+```
+
+<br>
+**Accuracy of the Random Forests predictor is `r accuracy_cmatrix_rf` . Out of Sample Error is  `r 1-accuracy_cmatrix_rf` **
+<br>
+<br>
+<br>
+
+## Submission of HAR Test Data Set
+
+Download and submit the Testing data set to our predictor:
+
+```{r}
+fileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+#download.file(fileUrl,destfile="./pml-testing.csv")
+pml_test_data <- read.csv("./pml-testing.csv", na.strings=c("#DIV/0!","NA",""))
+prediction_rf <- predict(training_rf, pml_test_data)
+prediction_rf
+
+```
+
+
+
+
